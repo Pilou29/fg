@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fear & Greed Index</title>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;700;800&display=swap');
+  :root { --bg:#0a0a0f; --panel:#111118; --border:#1e1e2e; --text:#e0e0f0; --muted:#6b7280; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'JetBrains Mono',monospace; padding:28px 32px; min-height:100vh; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+  .header-left h1 { font-family:'Syne',sans-serif; font-weight:800; font-size:24px; color:#fff; letter-spacing:-0.5px; }
+  .header-left p { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-top:3px; }
+  .signal-badge { display:none; align-items:center; gap:8px; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; }
+  .signal-badge.bull { display:flex; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.5); color:#22c55e; }
+  .signal-badge.bear { display:flex; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.5); color:#ef4444; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 20px; }
+  .stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.12em; margin-bottom:8px; }
+  .stat-value { font-family:'Syne',sans-serif; font-size:32px; font-weight:800; line-height:1; }
+  .stat-sub { font-size:11px; color:var(--muted); margin-top:5px; }
+  .zones { display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+  .zone { padding:5px 14px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; opacity:0.45; transition:opacity 0.2s,transform 0.2s; border:1px solid transparent; }
+  .zone.active { opacity:1; transform:scale(1.06); }
+  .zone-peur      { background:rgba(239,68,68,0.15);  color:#ef4444; border-color:rgba(239,68,68,0.4); }
+  .zone-neutre    { background:rgba(249,115,22,0.15); color:#f97316; border-color:rgba(249,115,22,0.4); }
+  .zone-confiance { background:rgba(59,130,246,0.15); color:#3b82f6; border-color:rgba(59,130,246,0.4); }
+  .zone-euphorie  { background:rgba(34,197,94,0.15);  color:#22c55e; border-color:rgba(34,197,94,0.4); }
+  .controls { display:flex; gap:16px; align-items:center; margin-bottom:20px; flex-wrap:wrap; justify-content:space-between; }
+  .year-selector { display:flex; gap:6px; flex-wrap:wrap; }
+  .year-btn { background:var(--panel); border:1px solid var(--border); color:var(--muted); padding:6px 16px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer; transition:all 0.15s; }
+  .year-btn:hover { border-color:#555; color:var(--text); }
+  .year-btn.active { border-color:#3b82f6; color:#3b82f6; background:rgba(59,130,246,0.1); }
+  .toggles { display:flex; gap:8px; flex-wrap:wrap; }
+  .toggle-btn { display:flex; align-items:center; gap:7px; padding:6px 14px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:11px; cursor:pointer; transition:all 0.15s; border:1px solid transparent; opacity:0.35; }
+  .toggle-btn.on { opacity:1; }
+  .toggle-btn .dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .toggle-fng  { background:rgba(107,114,128,0.1); border-color:rgba(107,114,128,0.3); color:#9ca3af; }
+  .toggle-fng.on  { border-color:#9ca3af; }
+  .toggle-ma7  { background:rgba(59,130,246,0.1);  border-color:rgba(59,130,246,0.3);  color:#3b82f6; }
+  .toggle-ma7.on  { border-color:#3b82f6; }
+  .toggle-ma14 { background:rgba(249,115,22,0.1);  border-color:rgba(249,115,22,0.3);  color:#f97316; }
+  .toggle-ma14.on { border-color:#f97316; }
+  .toggle-cross { background:rgba(168,85,247,0.1); border-color:rgba(168,85,247,0.3); color:#a855f7; }
+  .toggle-cross.on { border-color:#a855f7; }
+  .chart-wrap { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px 16px 10px; }
+  .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px; }
+  .chart-title { font-family:'Syne',sans-serif; font-size:13px; color:var(--muted); letter-spacing:0.05em; }
+  #chart { min-height:480px; }
+  .loading { display:flex; align-items:center; justify-content:center; height:480px; color:var(--muted); font-size:12px; letter-spacing:0.1em; gap:10px; }
+  .spinner { width:16px; height:16px; border:2px solid #1e1e2e; border-top-color:#3b82f6; border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>FEAR &amp; GREED INDEX</h1>
+    <p>alternative.me · actualisation automatique</p>
+  </div>
+  <div class="signal-badge" id="signal-badge"></div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Aujourd'hui</div><div class="stat-value" id="val-today">—</div><div class="stat-sub" id="val-class">—</div></div>
+  <div class="stat"><div class="stat-label">MA 7 jours</div><div class="stat-value" id="val-ma7">—</div><div class="stat-sub">lissé 7j</div></div>
+  <div class="stat"><div class="stat-label">MA 14 jours</div><div class="stat-value" id="val-ma14">—</div><div class="stat-sub">lissé 14j</div></div>
+  <div class="stat"><div class="stat-label">Variation</div><div class="stat-value" id="val-diff">—</div><div class="stat-sub">vs hier</div></div>
+</div>
+
+<div class="zones">
+  <div class="zone zone-peur"      id="z0">0–30 · Peur extrême</div>
+  <div class="zone zone-neutre"    id="z1">30–50 · Neutre</div>
+  <div class="zone zone-confiance" id="z2">50–75 · Confiance</div>
+  <div class="zone zone-euphorie"  id="z3">75–100 · Euphorie</div>
+</div>
+
+<div class="controls">
+  <div class="year-selector" id="year-selector"></div>
+  <div class="toggles">
+    <button class="toggle-btn toggle-fng on"   id="tog-fng"   onclick="toggleSeries('fng')"><span class="dot" style="background:#9ca3af"></span>FnG</button>
+    <button class="toggle-btn toggle-ma7 on"   id="tog-ma7"   onclick="toggleSeries('ma7')"><span class="dot" style="background:#3b82f6"></span>MA7</button>
+    <button class="toggle-btn toggle-ma14 on"  id="tog-ma14"  onclick="toggleSeries('ma14')"><span class="dot" style="background:#f97316"></span>MA14</button>
+    <button class="toggle-btn toggle-cross on" id="tog-cross" onclick="toggleSeries('cross')"><span class="dot" style="background:#a855f7"></span>Croisements</button>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <div class="chart-header">
+    <div class="chart-title" id="chart-title">CHARGEMENT...</div>
+  </div>
+  <div class="loading" id="loading"><div class="spinner"></div>RÉCUPÉRATION DES DONNÉES...</div>
+  <div id="chart" style="display:none"></div>
+</div>
+
+<script>
+let allData = [];
+let chartInstance = null;
+let currentYear = 'all';
+const visibility = { fng:true, ma7:true, ma14:true, cross:true };
+const THRESHOLDS = [30, 50, 75];
+const MONTHS_FR = ['jan','fév','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
+
+function getColor(v) {
+  if (v < 30) return '#ef4444';
+  if (v < 50) return '#f97316';
+  if (v < 75) return '#3b82f6';
+  return '#22c55e';
+}
+
+function computeMA(values, period) {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const s = values.slice(i - period + 1, i + 1);
+    return Math.round(s.reduce((a,b) => a+b, 0) / period * 10) / 10;
+  });
+}
+
+function findMACrossovers(ma7, ma14, timestamps) {
+  const out = [];
+  for (let i = 1; i < ma7.length; i++) {
+    if (!ma7[i] || !ma14[i] || !ma7[i-1] || !ma14[i-1]) continue;
+    if (ma7[i-1] <= ma14[i-1] && ma7[i] > ma14[i]) out.push({ ts: timestamps[i], type: 'bull' });
+    else if (ma7[i-1] >= ma14[i-1] && ma7[i] < ma14[i]) out.push({ ts: timestamps[i], type: 'bear' });
+  }
+  return out;
+}
+
+// Retourne les indices où MA14 franchit un seuil — pour afficher un point sur la courbe[cite: 2]
+function findZoneCrossIndices(ma14) {
+  const indices = [];
+  for (let i = 1; i < ma14.length; i++) {
+    if (!ma14[i] || !ma14[i-1]) continue;
+    for (const t of THRESHOLDS) {
+      if ((ma14[i-1] < t && ma14[i] >= t) || (ma14[i-1] >= t && ma14[i] < t)) {
+        indices.push(i);
+        break;
+      }
+    }
+  }
+  return indices;
+}
+
+function buildMonthAnnotations(filtered) {
+  // Build alternating month bands (much more readable than vertical lines)
+  const bands = [];
+  const labels = [];
+  let monthStart = null;
+  let lastMonth = -1;
+  let bandIndex = 0;
+
+  for (let i = 0; i < filtered.length; i++) {
+    const date = new Date(filtered[i].ts);
+    const m = date.getMonth();
+
+    if (m !== lastMonth) {
+      // Close previous band
+      if (monthStart !== null && i > 0) {
+        bands.push({
+          x: monthStart,
+          x2: filtered[i].ts,
+          fillColor: bandIndex % 2 === 0 ? '#ffffff' : '#3b82f6',
+          opacity: bandIndex % 2 === 0 ? 0.02 : 0.03,
+          borderWidth: 0,
+          label: {
+            show: true,
+            text: MONTHS_FR[lastMonth],
+            position: 'top',
+            offsetY: 6,
+            style: {
+              color: '#6b7280',
+              background: 'transparent',
+              fontSize: '10px',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontWeight: '400',
+              borderWidth: 0,
+              padding: { top:2, bottom:2, left:2, right:2 }
+            }
+          }
+        });
+        bandIndex++;
+      }
+      monthStart = filtered[i].ts;
+      lastMonth = m;
+    }
+  }
+
+  // Close last band
+  if (monthStart !== null && filtered.length > 0) {
+    bands.push({
+      x: monthStart,
+      x2: filtered[filtered.length - 1].ts,
+      fillColor: bandIndex % 2 === 0 ? '#ffffff' : '#3b82f6',
+      opacity: bandIndex % 2 === 0 ? 0.02 : 0.03,
+      borderWidth: 0,
+      label: {
+        show: true,
+        text: MONTHS_FR[lastMonth],
+        position: 'top',
+        offsetY: 6,
+        style: {
+          color: '#6b7280',
+          background: 'transparent',
+          fontSize: '10px',
+          fontFamily: 'JetBrains Mono, monospace',
+          fontWeight: '400',
+          borderWidth: 0,
+          padding: { top:2, bottom:2, left:2, right:2 }
+        }
+      }
+    });
+  }
+
+  return bands;
+}
+
+function toggleSeries(key) {
+  visibility[key] = !visibility[key];
+  document.getElementById('tog-' + key).classList.toggle('on', visibility[key]);
+  renderChart(currentYear);
+}
+
+function updateStats(data) {
+  const today     = data[data.length - 1];
+  const yesterday = data[data.length - 2];
+  const values    = data.map(d => d.value);
+  const ma7all    = computeMA(values, 7);
+  const ma14all   = computeMA(values, 14);
+  const ma7v      = ma7all[ma7all.length - 1];
+  const ma14v     = ma14all[ma14all.length - 1];
+
+  const todayEl = document.getElementById('val-today');
+  todayEl.textContent = today.value; todayEl.style.color = getColor(today.value);
+  document.getElementById('val-class').textContent = today.classification;
+
+  const ma7El = document.getElementById('val-ma7');
+  ma7El.textContent = ma7v ? ma7v.toFixed(1) : '—'; ma7El.style.color = ma7v ? getColor(ma7v) : '#fff';
+
+  const ma14El = document.getElementById('val-ma14');
+  ma14El.textContent = ma14v ? ma14v.toFixed(1) : '—'; ma14El.style.color = ma14v ? getColor(ma14v) : '#fff';
+
+  const diff = today.value - yesterday.value;
+  const diffEl = document.getElementById('val-diff');
+  diffEl.textContent = (diff >= 0 ? '+' : '') + diff;
+  diffEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
+
+  ['z0','z1','z2','z3'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const v = today.value;
+  if (v < 30) document.getElementById('z0').classList.add('active');
+  else if (v < 50) document.getElementById('z1').classList.add('active');
+  else if (v < 75) document.getElementById('z2').classList.add('active');
+  else document.getElementById('z3').classList.add('active');
+
+  const timestamps = data.map(d => d.ts);
+  const crosses = findMACrossovers(ma7all, ma14all, timestamps);
+  if (crosses.length > 0) {
+    const last = crosses[crosses.length - 1];
+    const daysAgo = Math.floor((Date.now() - last.ts) / 86400000);
+    if (daysAgo <= 5) {
+      const badge = document.getElementById('signal-badge');
+      badge.className = 'signal-badge ' + last.type;
+      badge.innerHTML = (last.type === 'bull' ? '⚡ Croisement HAUSSIER' : '⚠️ Croisement BAISSIER') +
+        ' · il y a ' + daysAgo + ' jour' + (daysAgo > 1 ? 's' : '');
+    }
+  }
+}
+
+function buildYearButtons(data) {
+  const years = [...new Set(data.map(d => new Date(d.ts).getFullYear()))].sort().reverse();
+  const container = document.getElementById('year-selector');
+  container.innerHTML = '';
+
+  // Years first (most recent first), with the most recent active by default
+  const currentYearNow = new Date().getFullYear();
+  years.forEach((y) => {
+    const btn = document.createElement('button');
+    btn.className = 'year-btn' + (y === currentYearNow ? ' active' : '');
+    btn.textContent = y;
+    btn.onclick = () => { setActive(btn); renderChart(y); };
+    container.appendChild(btn);
+  });
+
+  // TOUT last
+  const allBtn = document.createElement('button');
+  allBtn.className = 'year-btn';
+  allBtn.textContent = 'TOUT';
+  allBtn.onclick = () => { setActive(allBtn); renderChart('all'); };
+  container.appendChild(allBtn);
+
+  function setActive(el) {
+    container.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+  }
+}
+
+function renderChart(year) {
+  currentYear = year;
+  const filtered = year === 'all' ? allData : allData.filter(d => new Date(d.ts).getFullYear() === parseInt(year));
+
+  const values     = filtered.map(d => d.value);
+  const timestamps = filtered.map(d => d.ts);
+  const ma7        = computeMA(values, 7);
+  const ma14       = computeMA(values, 14);
+
+  document.getElementById('chart-title').textContent =
+    year === 'all' ? 'HISTORIQUE COMPLET · ' + filtered.length + ' jours' : 'ANNÉE ' + year + ' · ' + filtered.length + ' jours';
+
+  // Annotations X : mois (bandeaux alternés) + croisements MA7/MA14
+  const monthBands = buildMonthAnnotations(filtered);
+  const maCrosses  = visibility.cross ? findMACrossovers(ma7, ma14, timestamps) : [];
+  const crossLines = maCrosses.map(c => ({
+    x: c.ts,
+    borderColor: c.type === 'bull' ? '#22c55e' : '#ef4444',
+    borderWidth: 1.5,
+    strokeDashArray: 0,
+    label: { show: false }
+  }));
+
+  // Points de franchissement de zone sur MA14[cite: 2]
+  // On crée une série de points : null partout sauf aux indices de franchissement
+  const zoneIndices = new Set(findZoneCrossIndices(ma14));
+  const ma14Points = timestamps.map((t, i) => {
+    if (!zoneIndices.has(i) || !ma14[i]) return [t, null];
+    return [t, ma14[i]];
+  });
+
+  // Séries principales
+  const seriesFnG  = timestamps.map((t, i) => [t, visibility.fng  ? values[i] : null]);
+  const seriesMA7  = timestamps.map((t, i) => [t, visibility.ma7  ? ma7[i]    : null]);
+  const seriesMA14 = timestamps.map((t, i) => [t, visibility.ma14 ? ma14[i]   : null]);
+  // Série points de zone (toujours visible si MA14 visible)[cite: 2]
+  const seriesZonePts = visibility.ma14 ? ma14Points : timestamps.map(t => [t, null]);
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('chart').style.display = 'block';
+
+  chartInstance = new ApexCharts(document.getElementById('chart'), {
+    series: [
+      { name: 'FnG',        type: 'bar',     data: seriesFnG      },
+      { name: 'MA7',        type: 'line',    data: seriesMA7      },
+      { name: 'MA14',       type: 'line',    data: seriesMA14     },
+      { name: 'ZonePts',    type: 'scatter', data: seriesZonePts  },
+    ],
+    chart: {
+      height: 480,
+      type: 'line',
+      background: 'transparent',
+      toolbar: { show: true, tools: { download:false, selection:true, zoom:true, zoomin:true, zoomout:true, pan:true, reset:true } },
+      animations: { enabled: false },
+      fontFamily: 'JetBrains Mono, monospace',
+    },
+    colors: ['#6b7280', '#3b82f6', '#f97316', '#ffffff'],
+    stroke: { width: [0, 3, 3, 0], curve: 'smooth' },
+    plotOptions: { bar: { columnWidth: year === 'all' ? '85%' : '70%' } },
+    fill: { opacity: [0.8, 1, 1, 1] },
+    markers: {
+      size: [0, 0, 0, 5],
+      colors: ['transparent','transparent','transparent','#ffffff'],
+      strokeColors: ['transparent','transparent','transparent','#1e1e2e'],
+      strokeWidth: [0, 0, 0, 2],
+      shape: 'circle',
+    },
+    annotations: {
+      xaxis: [...monthBands, ...crossLines],
+      yaxis: [
+        { y:0,  y2:30,  fillColor:'#ef4444', opacity:0.18, borderWidth:0 },
+        { y:30, y2:50,  fillColor:'#f97316', opacity:0.12, borderWidth:0 },
+        { y:50, y2:75,  fillColor:'#3b82f6', opacity:0.10, borderWidth:0 },
+        { y:75, y2:100, fillColor:'#22c55e', opacity:0.14, borderWidth:0 },
+        { y:30, borderColor:'#ef4444', borderWidth:1, strokeDashArray:4 },
+        { y:50, borderColor:'#f97316', borderWidth:1, strokeDashArray:4 },
+        { y:75, borderColor:'#22c55e', borderWidth:1, strokeDashArray:4 },
+      ]
+    },
+    xaxis: {
+      type: 'datetime',
+      labels: { show: false },
+      axisBorder: { color:'#1e1e2e' },
+      axisTicks:  { color:'#1e1e2e' },
+    },
+    yaxis: {
+      min:0, max:100, tickAmount:4,
+      labels: {
+        style: { colors:'#6b7280', fontFamily:'JetBrains Mono, monospace', fontSize:'11px' },
+        formatter: v => Math.round(v)
+      }
+    },
+    grid: { borderColor:'#1e1e2e', strokeDashArray:3 },
+    tooltip: {
+      theme: 'dark',
+      x: { format:'dd/MM/yyyy' },
+      style: { fontFamily:'JetBrains Mono, monospace', fontSize:'12px' },
+      y: {
+        formatter: (val, { seriesIndex }) => {
+          if (seriesIndex === 3) return val !== null ? 'Franchissement seuil' : null;
+          return val !== null ? val : null;
+        }
+      }
+    },
+    legend: { show:false },
+    dataLabels: { enabled:false },
+    theme: { mode:'dark' },
+  });
+
+  chartInstance.render();
+}
+
+async function init() {
+  try {
+    const res  = await fetch('https://api.alternative.me/fng/?limit=0&format=json');
+    const json = await res.json();
+    allData = json.data
+      .map(d => ({
+        ts:             parseInt(d.timestamp) * 1000,
+        value:          parseInt(d.value),
+        classification: d.value_classification
+      }))
+      .reverse();
+    updateStats(allData);
+    buildYearButtons(allData);
+    const currentYear = new Date().getFullYear();
+    renderChart(currentYear);
+  } catch(e) {
+    document.getElementById('loading').innerHTML = '❌ Erreur : ' + e.message;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
