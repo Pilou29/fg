@@ -41,6 +41,8 @@
   .toggle-fng.on  { border-color:#9ca3af; }
   .toggle-ma7  { background:rgba(59,130,246,0.1);  border-color:rgba(59,130,246,0.3);  color:#3b82f6; }
   .toggle-ma7.on  { border-color:#3b82f6; }
+  .toggle-ma10 { background:rgba(168,85,247,0.1);  border-color:rgba(168,85,247,0.3);  color:#a855f7; }
+  .toggle-ma10.on { border-color:#a855f7; }
   .toggle-ma14 { background:rgba(249,115,22,0.1);  border-color:rgba(249,115,22,0.3);  color:#f97316; }
   .toggle-ma14.on { border-color:#f97316; }
   .toggle-cross { background:rgba(168,85,247,0.1); border-color:rgba(168,85,247,0.3); color:#a855f7; }
@@ -67,6 +69,7 @@
 <div class="stats">
   <div class="stat"><div class="stat-label">Aujourd'hui</div><div class="stat-value" id="val-today">—</div><div class="stat-sub" id="val-class">—</div></div>
   <div class="stat"><div class="stat-label">MA 7 jours</div><div class="stat-value" id="val-ma7">—</div><div class="stat-sub">lissé 7j</div></div>
+  <div class="stat"><div class="stat-label">MA 10 jours</div><div class="stat-value" id="val-ma10">—</div><div class="stat-sub">lissé 10j</div></div>
   <div class="stat"><div class="stat-label">MA 14 jours</div><div class="stat-value" id="val-ma14">—</div><div class="stat-sub">lissé 14j</div></div>
   <div class="stat"><div class="stat-label">Variation</div><div class="stat-value" id="val-diff">—</div><div class="stat-sub">vs hier</div></div>
 </div>
@@ -74,8 +77,8 @@
 <div class="zones">
   <div class="zone zone-peur"      id="z0">0–30 · Peur extrême</div>
   <div class="zone zone-neutre"    id="z1">30–50 · Neutre</div>
-  <div class="zone zone-confiance" id="z2">50–75 · Confiance</div>
-  <div class="zone zone-euphorie"  id="z3">75–100 · Euphorie</div>
+  <div class="zone zone-confiance" id="z2">50–70 · Confiance</div>
+  <div class="zone zone-euphorie"  id="z3">70–100 · Euphorie</div>
 </div>
 
 <div class="controls">
@@ -83,6 +86,7 @@
   <div class="toggles">
     <button class="toggle-btn toggle-fng on"   id="tog-fng"   onclick="toggleSeries('fng')"><span class="dot" style="background:#9ca3af"></span>FnG</button>
     <button class="toggle-btn toggle-ma7 on"   id="tog-ma7"   onclick="toggleSeries('ma7')"><span class="dot" style="background:#3b82f6"></span>MA7</button>
+    <button class="toggle-btn toggle-ma10 on"  id="tog-ma10"  onclick="toggleSeries('ma10')"><span class="dot" style="background:#a855f7"></span>MA10</button>
     <button class="toggle-btn toggle-ma14 on"  id="tog-ma14"  onclick="toggleSeries('ma14')"><span class="dot" style="background:#f97316"></span>MA14</button>
     <button class="toggle-btn toggle-cross on" id="tog-cross" onclick="toggleSeries('cross')"><span class="dot" style="background:#a855f7"></span>Croisements</button>
   </div>
@@ -100,14 +104,14 @@
 let allData = [];
 let chartInstance = null;
 let currentYear = 'all';
-const visibility = { fng:true, ma7:true, ma14:true, cross:true };
-const THRESHOLDS = [30, 50, 75];
+const visibility = { fng:true, ma7:true, ma10:true, ma14:true, cross:true };
+const THRESHOLDS = [30, 50, 70]; // Seuil modifié ici
 const MONTHS_FR = ['jan','fév','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
 
 function getColor(v) {
   if (v < 30) return '#ef4444';
   if (v < 50) return '#f97316';
-  if (v < 75) return '#3b82f6';
+  if (v < 70) return '#3b82f6'; // Seuil modifié ici
   return '#22c55e';
 }
 
@@ -129,7 +133,6 @@ function findMACrossovers(ma7, ma14, timestamps) {
   return out;
 }
 
-// Retourne les indices où MA14 franchit un seuil — pour afficher un point sur la courbe[cite: 2]
 function findZoneCrossIndices(ma14) {
   const indices = [];
   for (let i = 1; i < ma14.length; i++) {
@@ -145,9 +148,7 @@ function findZoneCrossIndices(ma14) {
 }
 
 function buildMonthAnnotations(filtered) {
-  // Build alternating month bands (much more readable than vertical lines)
   const bands = [];
-  const labels = [];
   let monthStart = null;
   let lastMonth = -1;
   let bandIndex = 0;
@@ -157,7 +158,6 @@ function buildMonthAnnotations(filtered) {
     const m = date.getMonth();
 
     if (m !== lastMonth) {
-      // Close previous band
       if (monthStart !== null && i > 0) {
         bands.push({
           x: monthStart,
@@ -188,7 +188,6 @@ function buildMonthAnnotations(filtered) {
     }
   }
 
-  // Close last band
   if (monthStart !== null && filtered.length > 0) {
     bands.push({
       x: monthStart,
@@ -213,7 +212,6 @@ function buildMonthAnnotations(filtered) {
       }
     });
   }
-
   return bands;
 }
 
@@ -228,19 +226,27 @@ function updateStats(data) {
   const yesterday = data[data.length - 2];
   const values    = data.map(d => d.value);
   const ma7all    = computeMA(values, 7);
+  const ma10all   = computeMA(values, 10);
   const ma14all   = computeMA(values, 14);
   const ma7v      = ma7all[ma7all.length - 1];
+  const ma10v     = ma10all[ma10all.length - 1];
   const ma14v     = ma14all[ma14all.length - 1];
 
-  const todayEl = document.getElementById('val-today');
-  todayEl.textContent = today.value; todayEl.style.color = getColor(today.value);
+  document.getElementById('val-today').textContent = today.value;
+  document.getElementById('val-today').style.color = getColor(today.value);
   document.getElementById('val-class').textContent = today.classification;
 
-  const ma7El = document.getElementById('val-ma7');
-  ma7El.textContent = ma7v ? ma7v.toFixed(1) : '—'; ma7El.style.color = ma7v ? getColor(ma7v) : '#fff';
+  document.getElementById('val-ma7').textContent = ma7v ? ma7v.toFixed(1) : '—';
+  document.getElementById('val-ma7').style.color = ma7v ? getColor(ma7v) : '#fff';
 
-  const ma14El = document.getElementById('val-ma14');
-  ma14El.textContent = ma14v ? ma14v.toFixed(1) : '—'; ma14El.style.color = ma14v ? getColor(ma14v) : '#fff';
+  const elMa10 = document.getElementById('val-ma10');
+  if(elMa10) {
+      elMa10.textContent = ma10v ? ma10v.toFixed(1) : '—';
+      elMa10.style.color = ma10v ? getColor(ma10v) : '#fff';
+  }
+
+  document.getElementById('val-ma14').textContent = ma14v ? ma14v.toFixed(1) : '—';
+  document.getElementById('val-ma14').style.color = ma14v ? getColor(ma14v) : '#fff';
 
   const diff = today.value - yesterday.value;
   const diffEl = document.getElementById('val-diff');
@@ -251,7 +257,7 @@ function updateStats(data) {
   const v = today.value;
   if (v < 30) document.getElementById('z0').classList.add('active');
   else if (v < 50) document.getElementById('z1').classList.add('active');
-  else if (v < 75) document.getElementById('z2').classList.add('active');
+  else if (v < 70) document.getElementById('z2').classList.add('active'); // Seuil modifié ici
   else document.getElementById('z3').classList.add('active');
 
   const timestamps = data.map(d => d.ts);
@@ -273,7 +279,6 @@ function buildYearButtons(data) {
   const container = document.getElementById('year-selector');
   container.innerHTML = '';
 
-  // Years first (most recent first), with the most recent active by default
   const currentYearNow = new Date().getFullYear();
   years.forEach((y) => {
     const btn = document.createElement('button');
@@ -283,7 +288,6 @@ function buildYearButtons(data) {
     container.appendChild(btn);
   });
 
-  // TOUT last
   const allBtn = document.createElement('button');
   allBtn.className = 'year-btn';
   allBtn.textContent = 'TOUT';
@@ -303,12 +307,12 @@ function renderChart(year) {
   const values     = filtered.map(d => d.value);
   const timestamps = filtered.map(d => d.ts);
   const ma7        = computeMA(values, 7);
+  const ma10       = computeMA(values, 10);
   const ma14       = computeMA(values, 14);
 
   document.getElementById('chart-title').textContent =
     year === 'all' ? 'HISTORIQUE COMPLET · ' + filtered.length + ' jours' : 'ANNÉE ' + year + ' · ' + filtered.length + ' jours';
 
-  // Annotations X : mois (bandeaux alternés) + croisements MA7/MA14
   const monthBands = buildMonthAnnotations(filtered);
   const maCrosses  = visibility.cross ? findMACrossovers(ma7, ma14, timestamps) : [];
   const crossLines = maCrosses.map(c => ({
@@ -319,19 +323,16 @@ function renderChart(year) {
     label: { show: false }
   }));
 
-  // Points de franchissement de zone sur MA14[cite: 2]
-  // On crée une série de points : null partout sauf aux indices de franchissement
   const zoneIndices = new Set(findZoneCrossIndices(ma14));
   const ma14Points = timestamps.map((t, i) => {
     if (!zoneIndices.has(i) || !ma14[i]) return [t, null];
     return [t, ma14[i]];
   });
 
-  // Séries principales
-  const seriesFnG  = timestamps.map((t, i) => [t, visibility.fng  ? values[i] : null]);
-  const seriesMA7  = timestamps.map((t, i) => [t, visibility.ma7  ? ma7[i]    : null]);
-  const seriesMA14 = timestamps.map((t, i) => [t, visibility.ma14 ? ma14[i]   : null]);
-  // Série points de zone (toujours visible si MA14 visible)[cite: 2]
+  const seriesFnG   = timestamps.map((t, i) => [t, visibility.fng   ? values[i] : null]);
+  const seriesMA7   = timestamps.map((t, i) => [t, visibility.ma7   ? ma7[i]    : null]);
+  const seriesMA10  = timestamps.map((t, i) => [t, visibility.ma10  ? ma10[i]   : null]);
+  const seriesMA14  = timestamps.map((t, i) => [t, visibility.ma14  ? ma14[i]   : null]);
   const seriesZonePts = visibility.ma14 ? ma14Points : timestamps.map(t => [t, null]);
 
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
@@ -342,6 +343,7 @@ function renderChart(year) {
     series: [
       { name: 'FnG',        type: 'bar',     data: seriesFnG      },
       { name: 'MA7',        type: 'line',    data: seriesMA7      },
+      { name: 'MA10',       type: 'line',    data: seriesMA10     },
       { name: 'MA14',       type: 'line',    data: seriesMA14     },
       { name: 'ZonePts',    type: 'scatter', data: seriesZonePts  },
     ],
@@ -353,15 +355,15 @@ function renderChart(year) {
       animations: { enabled: false },
       fontFamily: 'JetBrains Mono, monospace',
     },
-    colors: ['#6b7280', '#3b82f6', '#f97316', '#ffffff'],
-    stroke: { width: [0, 3, 3, 0], curve: 'smooth' },
+    colors: ['#6b7280', '#3b82f6', '#a855f7', '#f97316', '#ffffff'],
+    stroke: { width: [0, 3, 2, 3, 0], curve: 'smooth' },
     plotOptions: { bar: { columnWidth: year === 'all' ? '85%' : '70%' } },
-    fill: { opacity: [0.8, 1, 1, 1] },
+    fill: { opacity: [0.8, 1, 1, 1, 1] },
     markers: {
-      size: [0, 0, 0, 5],
-      colors: ['transparent','transparent','transparent','#ffffff'],
-      strokeColors: ['transparent','transparent','transparent','#1e1e2e'],
-      strokeWidth: [0, 0, 0, 2],
+      size: [0, 0, 0, 0, 5],
+      colors: ['transparent','transparent','transparent','transparent','#ffffff'],
+      strokeColors: ['transparent','transparent','transparent','transparent','#1e1e2e'],
+      strokeWidth: [0, 0, 0, 0, 2],
       shape: 'circle',
     },
     annotations: {
@@ -369,11 +371,11 @@ function renderChart(year) {
       yaxis: [
         { y:0,  y2:30,  fillColor:'#ef4444', opacity:0.18, borderWidth:0 },
         { y:30, y2:50,  fillColor:'#f97316', opacity:0.12, borderWidth:0 },
-        { y:50, y2:75,  fillColor:'#3b82f6', opacity:0.10, borderWidth:0 },
-        { y:75, y2:100, fillColor:'#22c55e', opacity:0.14, borderWidth:0 },
+        { y:50, y2:70,  fillColor:'#3b82f6', opacity:0.10, borderWidth:0 }, // Seuil modifié ici
+        { y:70, y2:100, fillColor:'#22c55e', opacity:0.14, borderWidth:0 }, // Seuil modifié ici
         { y:30, borderColor:'#ef4444', borderWidth:1, strokeDashArray:4 },
         { y:50, borderColor:'#f97316', borderWidth:1, strokeDashArray:4 },
-        { y:75, borderColor:'#22c55e', borderWidth:1, strokeDashArray:4 },
+        { y:70, borderColor:'#22c55e', borderWidth:1, strokeDashArray:4 }, // Seuil modifié ici
       ]
     },
     xaxis: {
@@ -396,7 +398,7 @@ function renderChart(year) {
       style: { fontFamily:'JetBrains Mono, monospace', fontSize:'12px' },
       y: {
         formatter: (val, { seriesIndex }) => {
-          if (seriesIndex === 3) return val !== null ? 'Franchissement seuil' : null;
+          if (seriesIndex === 4) return val !== null ? 'Franchissement seuil' : null;
           return val !== null ? val : null;
         }
       }
